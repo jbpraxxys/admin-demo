@@ -15,6 +15,7 @@ class ProjectController extends Controller
     public function index()
     {
         $projects = Project::where('created_by', Auth::id())
+            ->where('status', 'active')
             ->orderByDesc('created_at')
             ->get()
             ->map(fn ($p) => array_merge($p->toArray(), [
@@ -48,6 +49,10 @@ class ProjectController extends Controller
     {
         $project = $this->findProject($slug);
 
+        if ($project->status === 'archived') {
+            abort(404);
+        }
+
         $files = $project->files()->orderBy('uploaded_at', 'desc')->get();
 
         return inertia('Projects/Show', [
@@ -62,7 +67,13 @@ class ProjectController extends Controller
     {
         $project = $this->findProject($slug);
 
+        $oldStatus = $project->status;
         $project->update($request->validated());
+
+        if ($oldStatus !== $project->status) {
+            $this->toggleArchive($project->slug, $project->status);
+        }
+
         $this->htpasswd->write($project->slug, $project->demo_password);
 
         return redirect("/projects/{$project->slug}");
@@ -74,6 +85,7 @@ class ProjectController extends Controller
 
         $this->htpasswd->delete($project->slug);
         $this->rmdirRecursive(public_path("projects/{$project->slug}"));
+        $this->rmdirRecursive(storage_path("app/archived/{$project->slug}"));
         $project->delete();
 
         return redirect('/dashboard');
@@ -88,6 +100,28 @@ class ProjectController extends Controller
         }
 
         return $project;
+    }
+
+    private function toggleArchive(string $slug, string $status): void
+    {
+        $publicDir = public_path("projects/{$slug}");
+        $archiveDir = storage_path("app/archived/{$slug}");
+
+        if ($status === 'archived') {
+            if (is_dir($publicDir)) {
+                if (!is_dir(dirname($archiveDir))) {
+                    mkdir(dirname($archiveDir), 0755, true);
+                }
+                rename($publicDir, $archiveDir);
+            }
+        } else {
+            if (is_dir($archiveDir)) {
+                if (!is_dir(dirname($publicDir))) {
+                    mkdir(dirname($publicDir), 0755, true);
+                }
+                rename($archiveDir, $publicDir);
+            }
+        }
     }
 
     private function rmdirRecursive(string $dir): void

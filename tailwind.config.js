@@ -2,6 +2,7 @@ import defaultTheme from 'tailwindcss/defaultTheme'
 
 /** @type {import('tailwindcss').Config} */
 export default {
+    darkMode: 'class',
     content: [
         './vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php',
         './storage/framework/views/*.php',
@@ -20,10 +21,17 @@ export default {
                     'yellow-dark': '#D4A800',
                 },
                 surface: {
-                    page: '#0D0D0D',
-                    sidebar: '#111111',
-                    card: '#1A1A1A',
-                    border: '#2A2A2A',
+                    page: 'var(--surface-page)',
+                    sidebar: 'var(--surface-sidebar)',
+                    card: 'var(--surface-card)',
+                    border: 'var(--surface-border)',
+                    hover: 'var(--surface-hover)',
+                },
+                foreground: {
+                    DEFAULT: 'var(--foreground)',
+                    muted: 'var(--foreground-muted)',
+                    subtle: 'var(--foreground-subtle)',
+                    hint: 'var(--foreground-hint)',
                 },
             },
         },

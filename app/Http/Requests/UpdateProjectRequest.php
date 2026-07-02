@@ -15,6 +15,7 @@ class UpdateProjectRequest extends FormRequest
     {
         return [
             'demo_password' => ['required', 'string', 'min:4', 'max:100'],
+            'status' => ['required', 'in:active,archived'],
         ];
     }
 }

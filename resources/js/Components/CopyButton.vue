@@ -14,8 +14,8 @@ function copy() {
 <template>
   <button
     @click="copy"
-    class="inline-flex items-center gap-1 px-2 py-1 text-xs rounded border border-gray-300 hover:bg-gray-50 transition"
+    class="inline-flex items-center gap-1 px-2 py-1 text-xs rounded border border-surface-border text-foreground-muted hover:bg-surface-hover transition"
   >
-    {{ copied ? '✓ Copied' : 'Copy' }}
+    {{ copied ? 'Copied' : 'Copy' }}
   </button>
 </template>
