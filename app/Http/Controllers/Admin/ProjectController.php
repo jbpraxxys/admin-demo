@@ -34,8 +34,26 @@ class ProjectController extends Controller
             rmdir($dir);
         }
 
+        $archiveDir = storage_path("app/archived/{$project->slug}");
+        if (is_dir($archiveDir)) {
+            $this->rmdirRecursive($archiveDir);
+        }
+
         $project->delete();
 
         return redirect('/admin/projects');
+    }
+
+    private function rmdirRecursive(string $dir): void
+    {
+        if (!is_dir($dir)) return;
+
+        foreach (scandir($dir) as $item) {
+            if ($item === '.' || $item === '..') continue;
+            $path = "{$dir}/{$item}";
+            is_dir($path) ? $this->rmdirRecursive($path) : unlink($path);
+        }
+
+        rmdir($dir);
     }
 }

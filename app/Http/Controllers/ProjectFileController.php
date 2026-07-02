@@ -13,6 +13,10 @@ class ProjectFileController extends Controller
     {
         $project = Project::where('slug', $slug)->firstOrFail();
 
+        if ($project->status === 'archived') {
+            abort(403, 'Cannot upload files to an archived project.');
+        }
+
         $projectDir = public_path("projects/{$project->slug}");
         if (! is_dir($projectDir)) {
             mkdir($projectDir, 0755, true);
@@ -80,6 +84,10 @@ class ProjectFileController extends Controller
     public function destroy(string $slug, int $file)
     {
         $project = Project::where('slug', $slug)->firstOrFail();
+
+        if ($project->status === 'archived') {
+            abort(403, 'Cannot modify files in an archived project.');
+        }
 
         $file = ProjectFile::where('id', $file)
             ->where('project_id', $project->id)

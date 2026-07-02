@@ -18,6 +18,7 @@ class StoreProjectRequest extends FormRequest
             'client_name' => ['required', 'string', 'max:255'],
             'slug' => ['required', 'string', 'max:100', 'unique:projects,slug', 'regex:/^[a-z0-9_-]+$/'],
             'demo_password' => ['required', 'string', 'min:4', 'max:100'],
+            'status' => ['required', 'in:active,archived'],
         ];
     }
 }
