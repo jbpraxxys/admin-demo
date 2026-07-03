@@ -30,4 +30,9 @@
         --foreground-subtle: #6B7280;
         --foreground-hint: #4B5563;
     }
+
+    /* Yellow checkbox accent color */
+    input[type="checkbox"] {
+        accent-color: #F5C518;
+    }
 }
