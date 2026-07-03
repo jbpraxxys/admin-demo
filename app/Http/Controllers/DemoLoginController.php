@@ -34,6 +34,7 @@ class DemoLoginController extends Controller
         return inertia('Demo/Login', [
             'slug' => $slug,
             'projectName' => $project->name,
+            'csrf_token' => csrf_token(),
         ]);
     }
 

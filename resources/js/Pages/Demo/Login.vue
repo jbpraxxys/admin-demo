@@ -1,18 +1,14 @@
 <script setup>
-import { Head, useForm } from '@inertiajs/vue3'
+import { Head } from '@inertiajs/vue3'
+import { ref } from 'vue'
 
 const props = defineProps({
     slug: String,
     projectName: String,
+    errors: Object,
 })
 
-const form = useForm({
-    password: '',
-})
-
-function submit() {
-    form.post(`/projects/${props.slug}/login`)
-}
+const password = ref('')
 </script>
 
 <template>
@@ -29,26 +25,28 @@ function submit() {
                 <p class="text-sm text-foreground-subtle">Enter the demo password to view <strong class="text-foreground">{{ projectName }}</strong>.</p>
             </div>
 
-            <form @submit.prevent="submit" class="bg-surface-card border border-surface-border rounded-xl p-6 shadow-sm">
+            <form :action="`/projects/${slug}/login`" method="POST" class="bg-surface-card border border-surface-border rounded-xl p-6 shadow-sm">
+                <input type="hidden" name="_token" :value="$page.props.csrf_token" />
+                
                 <div class="mb-4">
                     <label for="password" class="block text-sm font-medium text-foreground mb-1.5">Demo Password</label>
                     <input
                         id="password"
-                        v-model="form.password"
+                        v-model="password"
+                        name="password"
                         type="password"
                         class="w-full px-3 py-2 bg-surface-page border border-surface-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-brand-yellow focus:border-transparent transition-colors"
                         placeholder="Enter password"
                         autofocus
                     />
-                    <p v-if="form.errors.password" class="mt-1.5 text-xs text-red-500">{{ form.errors.password }}</p>
+                    <p v-if="errors?.password" class="mt-1.5 text-xs text-red-500">{{ errors.password }}</p>
                 </div>
 
                 <button
                     type="submit"
-                    :disabled="form.processing"
-                    class="w-full px-4 py-2.5 bg-brand-yellow hover:bg-brand-yellow-dark text-black text-sm font-semibold rounded-lg transition-colors disabled:opacity-50"
+                    class="w-full px-4 py-2.5 bg-brand-yellow hover:bg-brand-yellow-dark text-black text-sm font-semibold rounded-lg transition-colors"
                 >
-                    {{ form.processing ? 'Verifying...' : 'Access Demo' }}
+                    Access Demo
                 </button>
             </form>
         </div>
