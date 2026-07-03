@@ -9,6 +9,7 @@ Route::get('/', fn () => redirect('/dashboard'));
 
 Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', [ProjectController::class, 'index'])->name('dashboard');
+    Route::get('/projects', fn () => redirect('/dashboard'));
     Route::get('/projects/create', [ProjectController::class, 'create'])->name('projects.create');
     Route::post('/projects', [ProjectController::class, 'store'])->name('projects.store');
     Route::get('/projects/{slug}', [ProjectController::class, 'show'])->name('projects.show');
