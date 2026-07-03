@@ -73,7 +73,7 @@ function folderIndeterminate(node) {
         <!-- Folder -->
         <div v-if="node.type === 'folder'" class="group">
             <div
-                class="flex items-center gap-3 py-2.5 hover:bg-surface-hover transition-colors"
+                class="flex items-center gap-3 py-2.5 pr-6 hover:bg-surface-hover transition-colors"
                 :style="{ paddingLeft: indent + 'px' }"
             >
                 <input
@@ -135,7 +135,7 @@ function folderIndeterminate(node) {
         <!-- File -->
         <div
             v-else
-            class="flex items-center gap-3 py-2.5 hover:bg-surface-hover transition-colors group"
+            class="flex items-center gap-3 py-2.5 pr-6 hover:bg-surface-hover transition-colors group"
             :style="{ paddingLeft: indent + 'px' }"
         >
             <input

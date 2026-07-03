@@ -11,6 +11,11 @@ const uploading = ref(false)
 const fileInput = ref(null)
 const folderInput = ref(null)
 
+// Drag and drop state
+const dragActive = ref(false)
+const dragCounter = ref(0)
+const dropMessage = ref('Drop files here to upload')
+
 // Modal states
 const modal = ref({
     show: false,
@@ -81,6 +86,126 @@ function upload(e) {
         forceFormData: true,
         onFinish: () => { uploading.value = false; e.target.value = '' },
     })
+}
+
+// Drag and drop handlers
+function onDragEnter(e) {
+    e.preventDefault()
+    e.stopPropagation()
+    dragCounter.value++
+    
+    // Check if files are being dragged (not text/other)
+    if (e.dataTransfer.types.includes('Files')) {
+        dragActive.value = true
+        dropMessage.value = e.dataTransfer.items.length > 1 
+            ? `Drop ${e.dataTransfer.items.length} items to upload`
+            : 'Drop file here to upload'
+    }
+}
+
+function onDragOver(e) {
+    e.preventDefault()
+    e.stopPropagation()
+    // Set dropEffect to copy to show it's a copy operation
+    if (e.dataTransfer) {
+        e.dataTransfer.dropEffect = 'copy'
+    }
+}
+
+function onDragLeave(e) {
+    e.preventDefault()
+    e.stopPropagation()
+    dragCounter.value--
+    
+    if (dragCounter.value === 0) {
+        dragActive.value = false
+    }
+}
+
+async function onDrop(e) {
+    e.preventDefault()
+    e.stopPropagation()
+    dragCounter.value = 0
+    dragActive.value = false
+    
+    const items = e.dataTransfer.items
+    if (!items || items.length === 0) return
+    
+    uploading.value = true
+    
+    try {
+        const allFiles = []
+        const allPaths = []
+        
+        // Process each dropped item
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i]
+            if (item.kind === 'file') {
+                const entry = item.webkitGetAsEntry()
+                if (entry) {
+                    await traverseEntry(entry, '', allFiles, allPaths)
+                }
+            }
+        }
+        
+        if (allFiles.length === 0) {
+            uploading.value = false
+            return
+        }
+        
+        const formData = new FormData()
+        for (let i = 0; i < allFiles.length; i++) {
+            formData.append('files[]', allFiles[i])
+            formData.append('paths[]', allPaths[i])
+        }
+        
+        router.post(`/projects/${props.project.slug}/files`, formData, {
+            forceFormData: true,
+            onFinish: () => { uploading.value = false },
+        })
+    } catch (err) {
+        console.error('Drop upload failed:', err)
+        uploading.value = false
+    }
+}
+
+async function traverseEntry(entry, path, files, paths) {
+    if (entry.isFile) {
+        return new Promise((resolve) => {
+            entry.file((file) => {
+                const relativePath = path ? `${path}/${entry.name}` : entry.name
+                files.push(file)
+                paths.push(relativePath)
+                resolve()
+            })
+        })
+    } else if (entry.isDirectory) {
+        const reader = entry.createReader()
+        return new Promise((resolve) => {
+            const readEntries = () => {
+                reader.readEntries(async (entries) => {
+                    if (entries.length === 0) {
+                        resolve()
+                        return
+                    }
+                    
+                    const promises = entries.map(childEntry => 
+                        traverseEntry(
+                            childEntry, 
+                            path ? `${path}/${entry.name}` : entry.name,
+                            files, 
+                            paths
+                        )
+                    )
+                    await Promise.all(promises)
+                    
+                    // Continue reading (readEntries may return in batches)
+                    readEntries()
+                })
+            }
+            readEntries()
+        })
+    }
 }
 
 function displayPath(path) {
@@ -467,6 +592,27 @@ function copy(path) {
             </div>
         </template>
 
+        <div
+            class="min-h-[calc(100vh-8rem)]"
+            @dragenter="onDragEnter"
+            @dragover="onDragOver"
+            @dragleave="onDragLeave"
+            @drop="onDrop"
+        >
+            <!-- Drop Zone Overlay -->
+            <div
+                v-if="dragActive"
+                class="fixed inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-sm pointer-events-none"
+            >
+            <div class="border-4 border-dashed border-brand-yellow rounded-3xl p-16 bg-surface-card/90 shadow-2xl text-center">
+                <svg class="w-16 h-16 text-brand-yellow mx-auto mb-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
+                </svg>
+                <p class="text-xl font-semibold text-foreground">{{ dropMessage }}</p>
+                <p class="text-sm text-foreground-subtle mt-2">Drop files or folders anywhere on this page</p>
+            </div>
+        </div>
+
         <!-- Files -->
         <div v-if="!files?.length" class="flex flex-col items-center justify-center py-24 text-center">
             <div class="w-16 h-16 rounded-2xl bg-surface-card border border-surface-border flex items-center justify-center mb-4">
@@ -739,5 +885,6 @@ function copy(path) {
             @close="closeModal"
             @confirm="handleConfirm"
         />
+        </div>
     </AuthenticatedLayout>
 </template>
