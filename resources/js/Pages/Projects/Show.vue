@@ -227,6 +227,72 @@ function isSelected(id) {
     return selectedIds.value.has(id)
 }
 
+function getAllFileIdsInNode(node) {
+    const ids = []
+    if (node.type === 'file') {
+        ids.push(node.id)
+    } else if (node.type === 'folder' && node.children) {
+        for (const child of node.children) {
+            ids.push(...getAllFileIdsInNode(child))
+        }
+    }
+    return ids
+}
+
+function toggleFolderSelect(node) {
+    const ids = getAllFileIdsInNode(node)
+    const allSelected = ids.every(id => selectedIds.value.has(id))
+    
+    if (allSelected) {
+        // Deselect all
+        for (const id of ids) {
+            selectedIds.value.delete(id)
+        }
+    } else {
+        // Select all
+        for (const id of ids) {
+            selectedIds.value.add(id)
+        }
+    }
+}
+
+function folderSelectionState(node) {
+    const ids = getAllFileIdsInNode(node)
+    if (ids.length === 0) return 'empty'
+    const selectedCount = ids.filter(id => selectedIds.value.has(id)).length
+    if (selectedCount === 0) return 'none'
+    if (selectedCount === ids.length) return 'all'
+    return 'partial'
+}
+
+function folderChecked(node) {
+    return folderSelectionState(node) === 'all'
+}
+
+function folderIndeterminate(node) {
+    return folderSelectionState(node) === 'partial'
+}
+
+function deleteFolder(node) {
+    const ids = getAllFileIdsInNode(node)
+    const count = ids.length
+    
+    openModal({
+        title: 'Delete Folder',
+        message: `Are you sure you want to delete "${node.name}" folder and all ${count} file${count !== 1 ? 's' : ''} inside?`,
+        confirmText: 'Delete',
+        variant: 'danger',
+        onConfirm: () => {
+            if (ids.length > 0) {
+                router.delete(`/projects/${props.project.slug}/files`, {
+                    data: { ids },
+                })
+            }
+            selectedIds.value.clear()
+        },
+    })
+}
+
 function getSelectedCount() {
     return selectedIds.value.size
 }
@@ -236,7 +302,7 @@ function collectAllFileIds(nodes) {
     for (const node of nodes) {
         if (node.type === 'file') {
             ids.push(node.id)
-        } else if (node.type === 'folder' && isExpanded(node.path)) {
+        } else if (node.type === 'folder') {
             ids.push(...collectAllFileIds(node.children))
         }
     }
@@ -445,21 +511,44 @@ function copy(path) {
                     <!-- Folder -->
                     <div v-if="node.type === 'folder'" class="group">
                         <div
-                            @click="toggleFolder(node.path)"
-                            class="flex items-center gap-3 px-6 py-3 cursor-pointer hover:bg-surface-hover transition-colors"
+                            class="flex items-center gap-3 px-6 py-3 hover:bg-surface-hover transition-colors"
                         >
-                            <svg
-                                class="w-4 h-4 text-brand-yellow transition-transform duration-200"
-                                :class="isExpanded(node.path) ? 'rotate-90' : ''"
-                                fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"
+                            <input
+                                type="checkbox"
+                                class="w-4 h-4 rounded border-surface-border text-brand-yellow focus:ring-brand-yellow bg-surface-page"
+                                :checked="folderChecked(node)"
+                                :indeterminate.prop="folderIndeterminate(node)"
+                                @change="toggleFolderSelect(node)"
+                                @click.stop
+                            />
+                            <div
+                                @click="toggleFolder(node.path)"
+                                class="flex items-center gap-3 cursor-pointer flex-1"
                             >
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
-                            </svg>
-                            <svg class="w-5 h-5 text-brand-yellow" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-                            </svg>
-                            <span class="text-sm font-medium text-foreground">{{ node.name }}</span>
-                            <span class="text-xs text-foreground-hint">({{ node.children.length }} item{{ node.children.length !== 1 ? 's' : '' }})</span>
+                                <svg
+                                    class="w-4 h-4 text-brand-yellow transition-transform duration-200"
+                                    :class="isExpanded(node.path) ? 'rotate-90' : ''"
+                                    fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"
+                                >
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                                </svg>
+                                <svg class="w-5 h-5 text-brand-yellow" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                                </svg>
+                                <span class="text-sm font-medium text-foreground">{{ node.name }}</span>
+                                <span class="text-xs text-foreground-hint">({{ node.children.length }} item{{ node.children.length !== 1 ? 's' : '' }})</span>
+                            </div>
+                            <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                    @click="deleteFolder(node)"
+                                    class="p-1.5 rounded-md text-foreground-subtle hover:text-red-500 hover:bg-red-500/10 transition-colors"
+                                    title="Delete folder"
+                                >
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                </button>
+                            </div>
                         </div>
                         
                         <!-- Folder Children -->
@@ -471,10 +560,12 @@ function copy(path) {
                                 :selected-ids="selectedIds"
                                 :level="1"
                                 @toggle-folder="toggleFolder"
+                                @toggle-folder-select="toggleFolderSelect"
                                 @toggle-select="toggleSelect"
                                 @edit="openEditModal"
                                 @rename="openRenameModal"
                                 @delete="(payload) => deleteFile(payload.id, payload.name)"
+                                @delete-folder="deleteFolder"
                                 @copy="copy"
                             />
                         </div>

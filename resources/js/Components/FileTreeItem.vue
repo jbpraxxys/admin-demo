@@ -11,12 +11,13 @@ const props = defineProps({
 
 const emit = defineEmits([
     'toggle-folder',
+    'toggle-folder-select',
     'toggle-select',
     'edit',
     'rename',
     'delete',
+    'delete-folder',
     'copy',
-    'format-size',
 ])
 
 const indent = computed(() => props.level * 24 + 24)
@@ -36,6 +37,35 @@ function formatSize(bytes) {
     const value = bytes / Math.pow(1024, i)
     return `${value.toFixed(2).replace(/\.00$/, '').replace(/0$/, '')} ${units[i]}`
 }
+
+function getAllFileIds(node) {
+    const ids = []
+    if (node.type === 'file') {
+        ids.push(node.id)
+    } else if (node.type === 'folder' && node.children) {
+        for (const child of node.children) {
+            ids.push(...getAllFileIds(child))
+        }
+    }
+    return ids
+}
+
+function folderSelectionState(node) {
+    const ids = getAllFileIds(node)
+    if (ids.length === 0) return 'empty'
+    const selectedCount = ids.filter(id => props.selectedIds.has(id)).length
+    if (selectedCount === 0) return 'none'
+    if (selectedCount === ids.length) return 'all'
+    return 'partial'
+}
+
+function folderChecked(node) {
+    return folderSelectionState(node) === 'all'
+}
+
+function folderIndeterminate(node) {
+    return folderSelectionState(node) === 'partial'
+}
 </script>
 
 <template>
@@ -43,22 +73,45 @@ function formatSize(bytes) {
         <!-- Folder -->
         <div v-if="node.type === 'folder'" class="group">
             <div
-                @click="$emit('toggle-folder', node.path)"
-                class="flex items-center gap-3 py-2.5 cursor-pointer hover:bg-surface-hover transition-colors"
+                class="flex items-center gap-3 py-2.5 hover:bg-surface-hover transition-colors"
                 :style="{ paddingLeft: indent + 'px' }"
             >
-                <svg
-                    class="w-4 h-4 text-brand-yellow transition-transform duration-200"
-                    :class="isExpanded(node.path) ? 'rotate-90' : ''"
-                    fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"
+                <input
+                    type="checkbox"
+                    class="w-4 h-4 rounded border-surface-border text-brand-yellow focus:ring-brand-yellow bg-surface-page"
+                    :checked="folderChecked(node)"
+                    :indeterminate.prop="folderIndeterminate(node)"
+                    @change="$emit('toggle-folder-select', node)"
+                    @click.stop
+                />
+                <div
+                    @click="$emit('toggle-folder', node.path)"
+                    class="flex items-center gap-3 cursor-pointer flex-1"
                 >
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
-                </svg>
-                <svg class="w-4 h-4 text-brand-yellow" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-                </svg>
-                <span class="text-sm font-medium text-foreground">{{ node.name }}</span>
-                <span class="text-xs text-foreground-hint">({{ node.children.length }} item{{ node.children.length !== 1 ? 's' : '' }})</span>
+                    <svg
+                        class="w-4 h-4 text-brand-yellow transition-transform duration-200"
+                        :class="isExpanded(node.path) ? 'rotate-90' : ''"
+                        fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"
+                    >
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
+                    <svg class="w-4 h-4 text-brand-yellow" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                    </svg>
+                    <span class="text-sm font-medium text-foreground">{{ node.name }}</span>
+                    <span class="text-xs text-foreground-hint">({{ node.children.length }} item{{ node.children.length !== 1 ? 's' : '' }})</span>
+                </div>
+                <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                        @click="$emit('delete-folder', node)"
+                        class="p-1 rounded-md text-foreground-subtle hover:text-red-500 hover:bg-red-500/10 transition-colors"
+                        title="Delete folder"
+                    >
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                    </button>
+                </div>
             </div>
             <div v-if="isExpanded(node.path)" class="bg-surface-page/30">
                 <FileTreeItem
@@ -68,10 +121,12 @@ function formatSize(bytes) {
                     :selected-ids="selectedIds"
                     :level="level + 1"
                     @toggle-folder="$emit('toggle-folder', $event)"
+                    @toggle-folder-select="$emit('toggle-folder-select', $event)"
                     @toggle-select="$emit('toggle-select', $event)"
                     @edit="$emit('edit', $event)"
                     @rename="$emit('rename', $event)"
                     @delete="$emit('delete', $event)"
+                    @delete-folder="$emit('delete-folder', $event)"
                     @copy="$emit('copy', $event)"
                 />
             </div>
