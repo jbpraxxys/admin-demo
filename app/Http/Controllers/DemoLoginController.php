@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Project;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\Session;
 
 class DemoLoginController extends Controller
@@ -21,7 +22,7 @@ class DemoLoginController extends Controller
         }
 
         // If already authenticated for this project, redirect to the first HTML file
-        if (Session::get("demo_auth_{$slug}")) {
+        if ($this->isDemoAuthValid($slug)) {
             $projectDir = public_path("projects/{$slug}");
             $files = glob("{$projectDir}/*.html");
             if (!empty($files)) {
@@ -66,7 +67,7 @@ class DemoLoginController extends Controller
         if (!file_exists($htpasswdPath)) {
             // Fallback: check against database directly
             if ($request->password === $project->demo_password) {
-                Session::put("demo_auth_{$slug}", true);
+                $this->grantDemoAuth($slug);
                 $redirectTo = $intended ?: $fallbackRedirect;
                 Session::forget("demo_intended_{$slug}");
                 return redirect($redirectTo);
@@ -77,7 +78,7 @@ class DemoLoginController extends Controller
             [, $hash] = explode(':', $contents, 2);
             
             if ($this->verifyPassword($request->password, $hash)) {
-                Session::put("demo_auth_{$slug}", true);
+                $this->grantDemoAuth($slug);
                 $redirectTo = $intended ?: $fallbackRedirect;
                 Session::forget("demo_intended_{$slug}");
                 return redirect($redirectTo);
@@ -92,7 +93,62 @@ class DemoLoginController extends Controller
     public function logout(string $slug)
     {
         Session::forget("demo_auth_{$slug}");
+        Cookie::queue(Cookie::forget('demo_session_' . $slug));
         return redirect("/projects/{$slug}/login");
+    }
+
+    /**
+     * Grant demo authentication for a project.
+     * Stores structured auth data with timestamp and session ID,
+     * and sets a browser session cookie (expires on browser close).
+     */
+    private function grantDemoAuth(string $slug): void
+    {
+        Session::put("demo_auth_{$slug}", [
+            'authenticated_at' => time(),
+            'session_id' => Session::getId(),
+        ]);
+
+        // Set a session cookie (expires when browser closes)
+        Cookie::queue('demo_session_' . $slug, 'active', 0);
+    }
+
+    /**
+     * Check if demo authentication is still valid.
+     * Validates:
+     * 1. Browser session cookie exists (browser was not closed)
+     * 2. Session token matches (session was not regenerated)
+     * 3. Less than 24 hours have passed since authentication
+     */
+    private function isDemoAuthValid(string $slug): bool
+    {
+        $authData = Session::get("demo_auth_{$slug}");
+
+        if (!is_array($authData)) {
+            return false;
+        }
+
+        // 1. Check if browser session cookie exists (browser was closed)
+        if (!request()->cookie('demo_session_' . $slug)) {
+            Session::forget("demo_auth_{$slug}");
+            return false;
+        }
+
+        // 2. Check if session token matches (handles session regeneration)
+        $currentSessionId = Session::getId();
+        if (empty($authData['session_id']) || $authData['session_id'] !== $currentSessionId) {
+            Session::forget("demo_auth_{$slug}");
+            return false;
+        }
+
+        // 3. Check if 24 hours have passed since authentication
+        $authenticatedAt = $authData['authenticated_at'] ?? null;
+        if (!$authenticatedAt || (time() - $authenticatedAt) > 86400) {
+            Session::forget("demo_auth_{$slug}");
+            return false;
+        }
+
+        return true;
     }
 
     private function verifyPassword(string $password, string $hash): bool

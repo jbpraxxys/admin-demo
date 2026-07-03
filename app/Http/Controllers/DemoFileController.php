@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Project;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Session;
 
@@ -24,8 +25,8 @@ class DemoFileController extends Controller
         // Check if user is logged in as admin/owner - they get direct access
         $isAdminOrOwner = auth()->check() && (auth()->user()->role === 'admin' || $project->user_id === auth()->id());
         
-        // Check demo password session
-        $hasDemoAuth = Session::get("demo_auth_{$slug}", false);
+        // Check demo password session with expiration validation
+        $hasDemoAuth = $this->isDemoAuthValid($slug);
 
         if (!$isAdminOrOwner && !$hasDemoAuth) {
             // Store intended URL so login can redirect back after auth
@@ -139,5 +140,43 @@ SCRIPT;
         }
 
         return $html;
+    }
+
+    /**
+     * Check if demo authentication is still valid.
+     * Validates:
+     * 1. Browser session cookie exists (browser was not closed)
+     * 2. Session token matches (session was not regenerated)
+     * 3. Less than 24 hours have passed since authentication
+     */
+    private function isDemoAuthValid(string $slug): bool
+    {
+        $authData = Session::get("demo_auth_{$slug}");
+
+        if (!is_array($authData)) {
+            return false;
+        }
+
+        // 1. Check if browser session cookie exists (browser was closed)
+        if (!request()->cookie('demo_session_' . $slug)) {
+            Session::forget("demo_auth_{$slug}");
+            return false;
+        }
+
+        // 2. Check if session token matches (handles session regeneration)
+        $currentSessionId = Session::getId();
+        if (empty($authData['session_id']) || $authData['session_id'] !== $currentSessionId) {
+            Session::forget("demo_auth_{$slug}");
+            return false;
+        }
+
+        // 3. Check if 24 hours have passed since authentication
+        $authenticatedAt = $authData['authenticated_at'] ?? null;
+        if (!$authenticatedAt || (time() - $authenticatedAt) > 86400) {
+            Session::forget("demo_auth_{$slug}");
+            return false;
+        }
+
+        return true;
     }
 }
