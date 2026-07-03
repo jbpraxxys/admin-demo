@@ -28,6 +28,8 @@ class DemoFileController extends Controller
         $hasDemoAuth = Session::get("demo_auth_{$slug}", false);
 
         if (!$isAdminOrOwner && !$hasDemoAuth) {
+            // Store intended URL so login can redirect back after auth
+            Session::put("demo_intended_{$slug}", "/projects/{$slug}/{$path}");
             // Redirect to demo login page
             return redirect("/projects/{$slug}/login");
         }

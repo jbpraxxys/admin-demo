@@ -54,17 +54,22 @@ class DemoLoginController extends Controller
             'password' => ['required', 'string'],
         ]);
 
+        // Get intended redirect URL from session (set by DemoFileController)
+        $intended = Session::get("demo_intended_{$slug}");
+
         // Verify password using htpasswd file
         $htpasswdPath = storage_path("htpasswd/{$slug}");
         $projectDir = public_path("projects/{$slug}");
         $htmlFiles = glob("{$projectDir}/*.html");
-        $redirectTo = !empty($htmlFiles) ? "/projects/{$slug}/" . basename($htmlFiles[0]) : "/projects/{$slug}/login";
+        $fallbackRedirect = !empty($htmlFiles) ? "/projects/{$slug}/" . basename($htmlFiles[0]) : "/projects/{$slug}/login";
         
         if (!file_exists($htpasswdPath)) {
             // Fallback: check against database directly
             if ($request->password === $project->demo_password) {
                 Session::put("demo_auth_{$slug}", true);
-                return redirect()->intended($redirectTo);
+                $redirectTo = $intended ?: $fallbackRedirect;
+                Session::forget("demo_intended_{$slug}");
+                return redirect($redirectTo);
             }
         } else {
             // Check htpasswd file
@@ -73,7 +78,9 @@ class DemoLoginController extends Controller
             
             if ($this->verifyPassword($request->password, $hash)) {
                 Session::put("demo_auth_{$slug}", true);
-                return redirect()->intended($redirectTo);
+                $redirectTo = $intended ?: $fallbackRedirect;
+                Session::forget("demo_intended_{$slug}");
+                return redirect($redirectTo);
             }
         }
 

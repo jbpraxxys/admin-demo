@@ -42,9 +42,6 @@ function handleConfirm() {
 function relativePath(file) {
     const rel = file.webkitRelativePath || file.name
     const parts = rel.split('/').filter(Boolean)
-    if (file.webkitRelativePath && parts.length > 1) {
-        parts.shift()
-    }
     return parts.join('/')
 }
 
