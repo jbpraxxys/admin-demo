@@ -41,6 +41,13 @@ const renameModal = ref({
     errors: {},
 })
 
+const demoPasswordModal = ref({
+    show: false,
+    password: '',
+    saving: false,
+    errors: {},
+})
+
 // Batch selection
 const selectedIds = ref(new Set())
 const expandedFolders = ref(new Set())
@@ -532,6 +539,37 @@ function submitRename() {
     })
 }
 
+// Demo password edit
+function openDemoPasswordModal() {
+    demoPasswordModal.value = {
+        show: true,
+        password: props.project.demo_password || '',
+        saving: false,
+        errors: {},
+    }
+}
+
+function closeDemoPasswordModal() {
+    demoPasswordModal.value.show = false
+}
+
+function submitDemoPassword() {
+    demoPasswordModal.value.saving = true
+    
+    router.patch(`/projects/${props.project.slug}`, {
+        demo_password: demoPasswordModal.value.password,
+        status: props.project.status,
+    }, {
+        onSuccess: () => {
+            closeDemoPasswordModal()
+        },
+        onError: (errors) => {
+            demoPasswordModal.value.errors = errors
+            demoPasswordModal.value.saving = false
+        },
+    })
+}
+
 function copy(path) {
     const fullUrl = `${window.location.origin}/projects/${props.project.slug}/${displayPath(path)}`
     navigator.clipboard.writeText(fullUrl)
@@ -554,6 +592,16 @@ function copy(path) {
                     </span>
                 </div>
                 <div class="flex items-center gap-3">
+                    <button
+                        @click="openDemoPasswordModal"
+                        class="inline-flex items-center gap-2 px-3 py-2 bg-surface-card border border-surface-border hover:border-brand-yellow text-foreground text-sm font-medium rounded-lg transition-colors"
+                        title="Edit demo password"
+                    >
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
+                        </svg>
+                        Demo Password
+                    </button>
                     <button
                         @click="toggleStatus"
                         class="inline-flex items-center gap-2 px-3 py-2 bg-surface-card border border-surface-border hover:border-foreground-hint text-foreground text-sm font-medium rounded-lg transition-colors"
@@ -871,6 +919,46 @@ function copy(path) {
                         class="px-4 py-2 bg-brand-yellow hover:bg-brand-yellow-dark text-black text-sm font-semibold rounded-lg transition-colors"
                     >
                         Rename
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Demo Password Modal -->
+        <div v-if="demoPasswordModal.show" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+            <div class="bg-surface-card border border-surface-border rounded-xl shadow-xl w-full max-w-md">
+                <div class="px-6 py-4 border-b border-surface-border">
+                    <h3 class="text-sm font-semibold text-foreground">Edit Demo Password</h3>
+                </div>
+                <div class="p-6">
+                    <label class="block text-sm font-medium text-foreground mb-2">Password</label>
+                    <input
+                        v-model="demoPasswordModal.password"
+                        type="text"
+                        class="w-full px-3 py-2 bg-surface-page border border-surface-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-brand-yellow focus:border-transparent"
+                        placeholder="Enter demo password"
+                        @keyup.enter="submitDemoPassword"
+                    />
+                    <p v-if="demoPasswordModal.errors.demo_password" class="mt-1.5 text-xs text-red-500">{{ demoPasswordModal.errors.demo_password }}</p>
+                    <p class="mt-2 text-xs text-foreground-subtle">This password is required for visitors to access the demo. Changing it will immediately invalidate all existing demo sessions.</p>
+                </div>
+                <div class="flex items-center justify-end gap-3 px-6 py-4 border-t border-surface-border">
+                    <button
+                        @click="closeDemoPasswordModal"
+                        class="px-4 py-2 text-sm text-foreground hover:bg-surface-hover rounded-lg transition-colors"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        @click="submitDemoPassword"
+                        :disabled="demoPasswordModal.saving"
+                        class="px-4 py-2 bg-brand-yellow hover:bg-brand-yellow-dark text-black text-sm font-semibold rounded-lg transition-colors disabled:opacity-50 inline-flex items-center gap-2"
+                    >
+                        <svg v-if="demoPasswordModal.saving" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        {{ demoPasswordModal.saving ? 'Saving...' : 'Save Password' }}
                     </button>
                 </div>
             </div>
