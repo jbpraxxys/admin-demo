@@ -37,8 +37,13 @@ $uri = urldecode(
 );
 
 // Serve real static files directly; let PHP's built-in server stream them.
+// Skip files under /projects/ so Laravel routes handle them (injects protection scripts).
 if ($uri !== '/' && is_file($publicPath.$uri)) {
-    return false;
+    if (str_starts_with($uri, '/projects/')) {
+        // Fall through to Laravel routing below
+    } else {
+        return false;
+    }
 }
 
 // Normalise the server variables so Laravel computes the request path purely

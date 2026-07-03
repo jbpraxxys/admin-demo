@@ -71,7 +71,8 @@ function displayPath(path) {
 }
 
 function copy(path) {
-    navigator.clipboard.writeText(window.location.origin + '/' + path)
+    const fullUrl = `${window.location.origin}/projects/${props.project.slug}/${displayPath(path)}`
+    navigator.clipboard.writeText(fullUrl)
 }
 
 function formatSize(bytes) {
@@ -198,7 +199,7 @@ function toggleStatus() {
                     >
                         <td class="px-6 py-3.5">
                             <a
-                                :href="`/${f.path}`"
+                                :href="`/projects/${project.slug}/${displayPath(f.path)}`"
                                 target="_blank"
                                 class="text-brand-yellow hover:text-brand-yellow-dark transition-colors font-mono text-xs"
                             >
@@ -209,7 +210,7 @@ function toggleStatus() {
                         <td class="px-6 py-3.5">
                             <div class="flex items-center justify-end gap-2">
                                 <a
-                                    :href="`/${f.path}`"
+                                    :href="`/projects/${project.slug}/${displayPath(f.path)}`"
                                     target="_blank"
                                     class="p-1.5 rounded-md text-foreground-subtle hover:text-brand-yellow hover:bg-brand-yellow/10 transition-colors"
                                     title="View"

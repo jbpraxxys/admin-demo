@@ -19,6 +19,11 @@ Route::middleware(['auth'])->group(function () {
     Route::delete('/projects/{slug}/files/{file}', [ProjectFileController::class, 'destroy'])->name('project-files.destroy');
 });
 
+// Serve demo files with protection (must be after all /projects/{slug}/* routes)
+Route::middleware(['auth'])->get('/projects/{slug}/{path}', [\App\Http\Controllers\DemoFileController::class, 'show'])
+    ->where('path', '.*')
+    ->name('demo.files');
+
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
