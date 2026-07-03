@@ -12,11 +12,6 @@ Route::get('/projects/{slug}/login', [\App\Http\Controllers\DemoLoginController:
 Route::post('/projects/{slug}/login', [\App\Http\Controllers\DemoLoginController::class, 'login'])->name('demo.login.post');
 Route::get('/projects/{slug}/logout', [\App\Http\Controllers\DemoLoginController::class, 'logout'])->name('demo.logout');
 
-// Serve demo files with protection (no auth required)
-Route::get('/projects/{slug}/{path}', [\App\Http\Controllers\DemoFileController::class, 'show'])
-    ->where('path', '.*')
-    ->name('demo.files');
-
 Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', [ProjectController::class, 'index'])->name('dashboard');
     Route::get('/projects', fn () => redirect('/dashboard'));
@@ -28,7 +23,17 @@ Route::middleware(['auth'])->group(function () {
 
     Route::post('/projects/{slug}/files', [ProjectFileController::class, 'store'])->name('project-files.store');
     Route::delete('/projects/{slug}/files/{file}', [ProjectFileController::class, 'destroy'])->name('project-files.destroy');
+    Route::delete('/projects/{slug}/files', [ProjectFileController::class, 'batchDestroy'])->name('project-files.batch-destroy');
+    Route::get('/projects/{slug}/files/{file}/content', [ProjectFileController::class, 'content'])->name('project-files.content');
+    Route::put('/projects/{slug}/files/{file}/content', [ProjectFileController::class, 'updateContent'])->name('project-files.update-content');
+    Route::patch('/projects/{slug}/files/{file}/rename', [ProjectFileController::class, 'rename'])->name('project-files.rename');
 });
+
+// Serve demo files with protection (no auth required)
+// Must be AFTER auth routes so admin file APIs take precedence
+Route::get('/projects/{slug}/{path}', [\App\Http\Controllers\DemoFileController::class, 'show'])
+    ->where('path', '^(?!files/|login|logout$).*$')
+    ->name('demo.files');
 
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');

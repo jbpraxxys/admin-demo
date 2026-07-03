@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use App\Http\Requests\UploadFileRequest;
 use App\Models\Project;
 use App\Models\ProjectFile;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\File;
 
 class ProjectFileController extends Controller
 {
@@ -27,9 +29,6 @@ class ProjectFileController extends Controller
         $paths = is_array($paths) ? array_values($paths) : [];
 
         foreach ($request->file('files', []) as $index => $file) {
-            // Policy: skip files that aren't an allowed asset type or exceed
-            // the size cap. Skipping (not hard-failing) keeps folder uploads
-            // working when one stray file is junk or disallowed.
             $extension = strtolower($file->getClientOriginalExtension());
             if (! in_array($extension, UploadFileRequest::ALLOWED_EXTENSIONS, true)) {
                 continue;
@@ -41,8 +40,6 @@ class ProjectFileController extends Controller
             $rawPath = $paths[$index] ?? $file->getClientOriginalName();
             $relative = $this->sanitizeRelativePath($rawPath);
 
-            // Skip anything that doesn't reduce to a safe, traversal-free path
-            // (e.g. "../../evil", absolute paths, OS junk).
             if ($relative === null) {
                 continue;
             }
@@ -59,7 +56,6 @@ class ProjectFileController extends Controller
                 mkdir($destDir, 0755, true);
             }
 
-            // Defense in depth: never let a destination escape the project dir.
             $destReal = realpath($destDir);
             if (! $destReal || ! str_starts_with($destReal.DIRECTORY_SEPARATOR, $rootReal.DIRECTORY_SEPARATOR)) {
                 continue;
@@ -100,7 +96,149 @@ class ProjectFileController extends Controller
 
         $file->delete();
 
-        $this->cleanupEmptyDirs(dirname($fullPath), $projectDir = public_path("projects/{$project->slug}"));
+        $this->cleanupEmptyDirs(dirname($fullPath), public_path("projects/{$project->slug}"));
+
+        return redirect("/projects/{$project->slug}");
+    }
+
+    /**
+     * Delete multiple files by ID.
+     */
+    public function batchDestroy(Request $request, string $slug)
+    {
+        $project = Project::where('slug', $slug)->firstOrFail();
+
+        if ($project->status === 'archived') {
+            abort(403, 'Cannot modify files in an archived project.');
+        }
+
+        $ids = $request->input('ids', []);
+        if (! is_array($ids) || empty($ids)) {
+            return redirect("/projects/{$project->slug}");
+        }
+
+        $files = ProjectFile::where('project_id', $project->id)
+            ->whereIn('id', $ids)
+            ->get();
+
+        foreach ($files as $file) {
+            $fullPath = public_path($file->path);
+            if (file_exists($fullPath)) {
+                unlink($fullPath);
+            }
+            $file->delete();
+            $this->cleanupEmptyDirs(dirname($fullPath), public_path("projects/{$project->slug}"));
+        }
+
+        return redirect("/projects/{$project->slug}");
+    }
+
+    /**
+     * Get file content for editing.
+     */
+    public function content(string $slug, int $file)
+    {
+        $project = Project::where('slug', $slug)->firstOrFail();
+        $file = ProjectFile::where('id', $file)
+            ->where('project_id', $project->id)
+            ->firstOrFail();
+
+        $fullPath = public_path($file->path);
+        if (! file_exists($fullPath)) {
+            abort(404, 'File not found.');
+        }
+
+        $content = File::get($fullPath);
+        $mime = File::mimeType($fullPath);
+
+        return response()->json([
+            'id' => $file->id,
+            'path' => $file->path,
+            'filename' => $file->filename,
+            'content' => $content,
+            'mime_type' => $mime,
+            'size' => $file->size,
+        ]);
+    }
+
+    /**
+     * Update file content.
+     */
+    public function updateContent(Request $request, string $slug, int $file)
+    {
+        $project = Project::where('slug', $slug)->firstOrFail();
+
+        if ($project->status === 'archived') {
+            abort(403, 'Cannot modify files in an archived project.');
+        }
+
+        $file = ProjectFile::where('id', $file)
+            ->where('project_id', $project->id)
+            ->firstOrFail();
+
+        $fullPath = public_path($file->path);
+        if (! file_exists($fullPath)) {
+            abort(404, 'File not found.');
+        }
+
+        $content = $request->input('content', '');
+        File::put($fullPath, $content);
+
+        // Update size in database
+        $file->size = filesize($fullPath);
+        $file->save();
+
+        return response()->json([
+            'success' => true,
+            'size' => $file->size,
+        ]);
+    }
+
+    /**
+     * Rename a file or folder.
+     */
+    public function rename(Request $request, string $slug, int $file)
+    {
+        $project = Project::where('slug', $slug)->firstOrFail();
+
+        if ($project->status === 'archived') {
+            abort(403, 'Cannot modify files in an archived project.');
+        }
+
+        $request->validate([
+            'new_name' => ['required', 'string', 'max:255', 'regex:/^[^\x00-\x1F\x7F<>:"|?*\\/]+$/'],
+        ]);
+
+        $file = ProjectFile::where('id', $file)
+            ->where('project_id', $project->id)
+            ->firstOrFail();
+
+        $newName = $request->input('new_name');
+        $oldPath = public_path($file->path);
+
+        if (! file_exists($oldPath)) {
+            abort(404, 'File not found.');
+        }
+
+        // Build new path
+        $relativeDir = dirname($file->path);
+        $newRelativePath = $relativeDir === '.' || $relativeDir === '/' 
+            ? "projects/{$slug}/{$newName}" 
+            : "{$relativeDir}/{$newName}";
+        $newPath = public_path($newRelativePath);
+
+        // Prevent overwriting existing files
+        if (file_exists($newPath) && realpath($newPath) !== realpath($oldPath)) {
+            return back()->withErrors(['new_name' => 'A file with that name already exists.']);
+        }
+
+        // Rename the file
+        rename($oldPath, $newPath);
+
+        // Update database record
+        $file->path = $newRelativePath;
+        $file->filename = $newName;
+        $file->save();
 
         return redirect("/projects/{$project->slug}");
     }
