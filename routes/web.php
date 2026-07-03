@@ -7,6 +7,16 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/', fn () => redirect('/dashboard'));
 
+// Demo file access - no auth required, password protected
+Route::get('/projects/{slug}/login', [\App\Http\Controllers\DemoLoginController::class, 'show'])->name('demo.login');
+Route::post('/projects/{slug}/login', [\App\Http\Controllers\DemoLoginController::class, 'login'])->name('demo.login.post');
+Route::get('/projects/{slug}/logout', [\App\Http\Controllers\DemoLoginController::class, 'logout'])->name('demo.logout');
+
+// Serve demo files with protection (no auth required)
+Route::get('/projects/{slug}/{path}', [\App\Http\Controllers\DemoFileController::class, 'show'])
+    ->where('path', '.*')
+    ->name('demo.files');
+
 Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', [ProjectController::class, 'index'])->name('dashboard');
     Route::get('/projects', fn () => redirect('/dashboard'));
@@ -19,11 +29,6 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/projects/{slug}/files', [ProjectFileController::class, 'store'])->name('project-files.store');
     Route::delete('/projects/{slug}/files/{file}', [ProjectFileController::class, 'destroy'])->name('project-files.destroy');
 });
-
-// Serve demo files with protection (must be after all /projects/{slug}/* routes)
-Route::middleware(['auth'])->get('/projects/{slug}/{path}', [\App\Http\Controllers\DemoFileController::class, 'show'])
-    ->where('path', '.*')
-    ->name('demo.files');
 
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Project;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Session;
 
 class DemoFileController extends Controller
 {
@@ -20,9 +21,15 @@ class DemoFileController extends Controller
             abort(404);
         }
 
-        // Check if user has access to this project
-        if (auth()->check() && auth()->user()->role !== 'admin' && $project->user_id !== auth()->id()) {
-            abort(403);
+        // Check if user is logged in as admin/owner - they get direct access
+        $isAdminOrOwner = auth()->check() && (auth()->user()->role === 'admin' || $project->user_id === auth()->id());
+        
+        // Check demo password session
+        $hasDemoAuth = Session::get("demo_auth_{$slug}", false);
+
+        if (!$isAdminOrOwner && !$hasDemoAuth) {
+            // Redirect to demo login page
+            return redirect("/projects/{$slug}/login");
         }
 
         // Try active public path first, then archived storage path
