@@ -50,6 +50,23 @@ class DemoFileController extends Controller
         $mimeType = File::mimeType($fullPath);
         $content = File::get($fullPath);
 
+        // Fix common MIME types that PHP misidentifies
+        $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+        $mimeOverrides = [
+            'css' => 'text/css',
+            'js' => 'application/javascript',
+            'json' => 'application/json',
+            'svg' => 'image/svg+xml',
+            'woff' => 'font/woff',
+            'woff2' => 'font/woff2',
+            'ttf' => 'font/ttf',
+            'otf' => 'font/otf',
+            'eot' => 'application/vnd.ms-fontobject',
+        ];
+        if (isset($mimeOverrides[$extension])) {
+            $mimeType = $mimeOverrides[$extension];
+        }
+
         // For HTML files, inject protection script
         if (str_contains($mimeType, 'html') || str_ends_with(strtolower($path), '.html') || str_ends_with(strtolower($path), '.htm')) {
             $content = $this->injectProtectionScript($content);
